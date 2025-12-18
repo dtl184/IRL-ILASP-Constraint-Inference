@@ -40,5 +40,5 @@ Requirements: numpy, re, clingo. Additionally you will need an ILASP implementat
 To run, clone this repo and navigate to the new directory. Enter command `python main.py` to run the IRL-ILASP solver on the Towers of Hanoi trajectories and generate the smaller-disk constraint.  
 ## 3. Future Work
 
-Future work on this project will entail discovering constraints in more complex environments. For example, the Proper Shopper environment https://github.com/dtl184/propershopper where agents must follows social norms in addition to completing tasks. 
+Future work on this project will entail discovering constraints in more complex environments. For example, the Proper Shopper environment https://github.com/dtl184/propershopper where agents must follow social norms in addition to completing tasks. 
 
