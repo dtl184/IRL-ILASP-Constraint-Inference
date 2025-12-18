@@ -23,7 +23,7 @@ $$c^* = \arg\max_{(s,a) \notin \tau_{\text{exp}}} D_{sa}(s, a)$$
 where $\tau_\text{exp}$ is an observed expert trajectory. 
 
 ### 3. Symbolic Induction
-Once a candidate $c^*$ is identified, we  We use **ILASP** to find a hypothesis $H$ that explains why the candidate is a violation while the expert's moves are not. ILASP uses the language bias that sets the structure of the constraint. The head of the generated rule is `violation` and the body predicates `moving_disk(X)`, `disk_below(X)`, and `smaller(X, Y)`. ILASP generates constraints $H$ that, with background knowledge $B$, satisfies the following:
+Once a candidate $c^*$ is identified, we  We use **ILASP** to find a hypothesis $H$ that explains why the candidate is a violation while the expert's moves are not. ILASP uses the language bias which sets the structure of the generated constraints. The head of a generated constraint is `violation` and the body predicates `moving_disk(X)`, `disk_below(X)`, and `smaller(X, Y)`. ILASP generates constraints $H$ that, with background knowledge $B$, satisfies the following:
 
 $$B \cup H \models E^+ \quad \text{and} \quad B \cup H \not\models E^-$$
 
