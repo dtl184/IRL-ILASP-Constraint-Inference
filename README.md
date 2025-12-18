@@ -41,5 +41,7 @@ which is precisely the underlying constraint of Towers of Hanoi: it is a violati
 Requirements: numpy, re, clingo. Additionally you will need an ILASP implementation. There is no pip package for this but you can find an implementation here: https://github.com/ilaspltd/ILASP-releases. 
 
 To run, clone this repo and navigate to the new directory. Enter command `python main.py` to run the IRL-ILASP solver on the Towers of Hanoi trajectories and generate the smaller-disk constraint.  
+## 3. Future Work
 
+Future work on this project will entail discovering constraints in more complex environments. For example, the Proper Shopper environment https://github.com/dtl184/propershopper where agents must follows social norms in addition to completing tasks. 
 
