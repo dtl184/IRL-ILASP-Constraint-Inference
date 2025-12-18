@@ -2,7 +2,7 @@
 
 This project implements the constraint learning algorithm from "Inverse reinforcement learning through logic constraint inference" by Baert et. al. The goal is to uncover the constraint that larger disks may not be placed on top of smaller disks while completing the Towers of Hanoi task. 
 
-## 1. Methodology Overview
+## 1. Methodology
 
 The environment is defined as a Markov Decision Process (MDP) without a reward function: $\mathcal{M} = (S, A, T, \gamma)$.
 
