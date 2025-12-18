@@ -34,4 +34,12 @@ We generated 26 trajectories of solving Towers of Hanoi with three disks and thr
 
 `violation :- moving_disk(V1), disk_below(V2), smaller(V2, V1).`
 
+which is precisely the underlying constraint of Towers of Hanoi.
+
+## 2. Instructions for Running
+
+Requirements: numpy, re, clingo. Additionally you will need an ILASP implementation. There is no pip package for this but you can find an implementation here: https://github.com/ilaspltd/ILASP-releases. 
+
+To run, clone this repo and navigate to the new directory. Enter command `python main.py` to run the IRL-ILASP solver on the Towers of Hanoi trajectories and generate the smaller-disk constraint.  
+
 
