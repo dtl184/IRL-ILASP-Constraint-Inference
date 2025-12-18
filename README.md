@@ -4,13 +4,16 @@ This project implements the constraint learning algorithm from "Inverse reinforc
 
 ## 1. Methodology Overview
 
-The environment is defined as a Markov Decision Process (MDP) without a predefined reward function: $\mathcal{M} \setminus R = (S, A, T, \gamma)$. The goal is to induce the symbolic rules of the environment by observing expert behavior.
+The environment is defined as a Markov Decision Process (MDP) without a reward function: $\mathcal{M} = (S, A, T, \gamma)$.
 
 ### 2. Maximum Entropy IRL (Numerical Discovery)
 We employ a Maximum Entropy IRL approach to estimate the **State-Action Visitation Frequency** $D_{sa}$. This value represents how often an unconstrained agent would take a specific action to reach a goal efficiently.
 
 $$D_{sa} = \sum_{t=0}^{H} P(s_t = s, a_t = a \mid \pi)$$
 
+Where $\pi$ is the Maximum-Entropy policy:
+
+$$\pi(a\mid s) = \frac{\exp(Q(s,a))}{\Sigma_{a'} \exp(Q(s,a))}$$
 
 
 The system identifies "informational gaps" where the unconstrained agent's visitation frequency is high, but the expert's is zero. A candidate violation $c^*$ is selected as:
