@@ -1,6 +1,6 @@
-# Constraint Discovery in the Tower of Hanoi: A Hybrid IRL-ILP Approach
+# Towers of Hanoi Constraint Learning
 
-This project implements a hybrid framework that combines **Inverse Reinforcement Learning (IRL)** and **Inductive Logic Programming (ILP)** to discover physical laws from expert demonstrations.
+This project implements the constraint learning algorithm from "Inverse reinforcement learning through logic constraint inference" by Baert et. al. The goal is to uncover the constraint that larger disks may not be placed on top of smaller disks while completing the Towers of Hanoi task. 
 
 ## 1. Methodology Overview
 
