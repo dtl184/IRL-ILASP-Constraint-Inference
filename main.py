@@ -1,18 +1,16 @@
 import numpy as np
 import subprocess
 import os
-import re
-from mdp_helpers import convert_state_to_facts, trajectory_to_logic_examples
+from mdp_helpers import trajectory_to_logic_examples
 
-# --- MDP Constants ---
+# MDP constants
 PEGS = [1, 2, 3]
 STATE_SPACE = [(d1, d2, d3) for d1 in PEGS for d2 in PEGS for d3 in PEGS]
-# Standard 6 actions (no move-to-self)
 ACTS = [f"move({p1}, {p2})" for p1 in PEGS for p2 in PEGS if p1 != p2]
 
 def calculate_maxent_svf(T, action_names, constraints, horizon=30):
     """
-    Forward Pass of IRL: Expected State Visitation Frequency.
+    Computes expected state visitation frequency 
     T shape: (27, 6, 27) -> (States, Actions, Next_States)
     """
     n_s, n_a, _ = T.shape
@@ -22,7 +20,6 @@ def calculate_maxent_svf(T, action_names, constraints, horizon=30):
         state = STATE_SPACE[s_idx]
         for a_idx in range(n_a):
             action = action_names[a_idx]
-            # IRL Constraint: If (s,a) is flagged as a violation, prob = 0
             if (state, action) in constraints:
                 pi[s_idx, a_idx] = 0.0
         
@@ -43,24 +40,28 @@ def calculate_maxent_svf(T, action_names, constraints, horizon=30):
     return pi * svf[:, np.newaxis]
 
 def run_inference():
+    """
+    Executes IRL-ILASP loop to discover the hidden task constraints. 
+    """
     T_prob = np.load('T_prob.npy') 
     n_states, n_actions = T_prob.shape[0], T_prob.shape[1]
     current_acts = ACTS[:n_actions]
     
+    # load in expert trajectories
     with open('expert_trajectories.txt', 'r') as f:
         l_env = {}; exec(f.read(), {}, l_env)
         EXPERT_TRAJECTORIES = l_env.get('EXPERT_TRAJECTORIES', [])
 
     expert_sa = set((s, a) for traj in EXPERT_TRAJECTORIES for s, a, _ in traj)
-    C = [] # Change to a list to keep order of confidence
+    C = [] 
 
-    print("MDP detected. Starting IRL-Logic bridge...")
 
     for i in range(100):
         # 1. Forward Pass (IRL)
         D_sa = calculate_maxent_svf(T_prob, current_acts, set(C), horizon=50)
         
-        # 2. Find the highest SVF candidate not yet processed
+        # 2. Find the move with highest SVF not visited in an expert trajectory
+        # this is a candidate constraint
         flat_indices = np.argsort(D_sa, axis=None)[::-1]
         c_star = None
         for idx in flat_indices:
@@ -73,9 +74,7 @@ def run_inference():
         if not c_star: break
         C.append(c_star)
 
-        # 3. Targeted ILASP Induction
-        # We only ask ILASP to explain the LATEST candidate relative to experts.
-        # This prevents 'legal noise' from blocking the discovery of the rule.
+        # 3. Generate negative and positive examples based on the candidate constraint
         E_plus, E_minus = trajectory_to_logic_examples(EXPERT_TRAJECTORIES, [c_star])
         
         with open('input.las', 'w') as f_out:
@@ -83,19 +82,17 @@ def run_inference():
                 f_out.write(open('ilasp_config.lp').read() + "\n")
             f_out.write("\n".join(E_plus) + "\n" + "\n".join(E_minus))
 
+        # 4. Run ILASP to find a rule that can perfectly separate the negative and positive examples 
         res = subprocess.run(['ilasp', '--version=4', '-q', 'input.las'], capture_output=True, text=True)
         
+        # If a suitable constraint has been generated, stop.
         output = res.stdout.strip()
         if "violation" in output:
             print(f"\n" + "*"*40)
-            print(f"SUCCESS! LOGIC RULE DISCOVERED")
-            print(f"The IRL flagged: {c_star}")
-            print(f"ILASP Explanation: {output}")
+            print(f"Constraint Discovered")
+            print(f"{output}")
             print("*"*40)
             break
-        else:
-            if (i+1) % 10 == 0:
-                print(f"Processed {i+1} candidates... still searching for physical laws.")
 
 if __name__ == "__main__":
     run_inference()
