@@ -20,6 +20,8 @@ The algorithm then identifies candidate violation state-action pair, where the u
 
 $$c^* = \arg\max_{(s,a) \notin \tau_{\text{exp}}} D_{sa}(s, a)$$
 
+where $\tau_\text{exp}$ is an observed expert trajectory. 
+
 ### 3. Symbolic Induction
 Once a candidate $c^*$ is identified, we  We use **ILASP** to find a hypothesis $H$ that explains why the candidate is a violation while the expert's moves are not:
 
