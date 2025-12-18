@@ -7,84 +7,95 @@ from mdp_helpers import convert_state_to_facts, trajectory_to_logic_examples
 # --- MDP Constants ---
 PEGS = [1, 2, 3]
 STATE_SPACE = [(d1, d2, d3) for d1 in PEGS for d2 in PEGS for d3 in PEGS]
-ACTION_SPACE = [f'move({p1}, {p2})' for p1 in PEGS for p2 in PEGS if p1 != p2]
+# Standard 6 actions (no move-to-self)
+ACTS = [f"move({p1}, {p2})" for p1 in PEGS for p2 in PEGS if p1 != p2]
+
+def calculate_maxent_svf(T, action_names, constraints, horizon=30):
+    """
+    Forward Pass of IRL: Expected State Visitation Frequency.
+    T shape: (27, 6, 27) -> (States, Actions, Next_States)
+    """
+    n_s, n_a, _ = T.shape
+    pi = np.ones((n_s, n_a))
+    
+    for s_idx in range(n_s):
+        state = STATE_SPACE[s_idx]
+        for a_idx in range(n_a):
+            action = action_names[a_idx]
+            # IRL Constraint: If (s,a) is flagged as a violation, prob = 0
+            if (state, action) in constraints:
+                pi[s_idx, a_idx] = 0.0
+        
+        if pi[s_idx].sum() > 0:
+            pi[s_idx] /= pi[s_idx].sum()
+
+    mu = np.ones(n_s) / n_s 
+    svf = np.zeros(n_s)
+    for _ in range(horizon):
+        svf += mu
+        next_mu = np.zeros(n_s)
+        for s_idx in range(n_s):
+            for a_idx in range(n_a):
+                if pi[s_idx, a_idx] > 0:
+                    next_mu += mu[s_idx] * pi[s_idx, a_idx] * T[s_idx, a_idx]
+        mu = next_mu
+        
+    return pi * svf[:, np.newaxis]
 
 def run_inference():
-    # 1. Load Data
-    try:
-        T_prob = np.load('T_prob.npy')
-    except:
-        print("T_prob.npy missing.")
-        return
-
+    T_prob = np.load('T_prob.npy') 
+    n_states, n_actions = T_prob.shape[0], T_prob.shape[1]
+    current_acts = ACTS[:n_actions]
+    
     with open('expert_trajectories.txt', 'r') as f:
         l_env = {}; exec(f.read(), {}, l_env)
         EXPERT_TRAJECTORIES = l_env.get('EXPERT_TRAJECTORIES', [])
 
     expert_sa = set((s, a) for traj in EXPERT_TRAJECTORIES for s, a, _ in traj)
-    C = set() 
+    C = [] # Change to a list to keep order of confidence
 
-    for i in range(5):
-        print(f"\n--- Iteration {i+1} ---")
+    print("MDP detected. Starting IRL-Logic bridge...")
+
+    for i in range(100):
+        # 1. Forward Pass (IRL)
+        D_sa = calculate_maxent_svf(T_prob, current_acts, set(C), horizon=50)
         
-        # Identify a candidate violation manually to kickstart ILASP
+        # 2. Find the highest SVF candidate not yet processed
+        flat_indices = np.argsort(D_sa, axis=None)[::-1]
         c_star = None
-        for s in STATE_SPACE:
-            for a in ACTION_SPACE:
-                if (s, a) in expert_sa or (s, a) in C: continue
-                facts = convert_state_to_facts(s, a)
-                m = re.search(r'\((\d+)\)', facts[0])
-                t = re.search(r'\((\d+)\)', facts[1])
-                if m and t and t.group(1).isdigit():
-                    if int(m.group(1)) > int(t.group(1)):
-                        c_star = (s, a)
-                        break
-            if c_star: break
+        for idx in flat_indices:
+            s_idx, a_idx = np.unravel_index(idx, D_sa.shape)
+            candidate = (STATE_SPACE[s_idx], current_acts[a_idx])
+            if candidate not in expert_sa and candidate not in C:
+                c_star = candidate
+                break
 
-        if not c_star:
-            print("No more violations found.")
-            break
+        if not c_star: break
+        C.append(c_star)
 
-        C.add(c_star)
-        print(f"Inferred candidate: {c_star}")
-
-        # 2. Write and Run ILASP
-        E_plus, E_minus = trajectory_to_logic_examples(EXPERT_TRAJECTORIES, C)
-        with open('input.las', 'w') as f:
-            if os.path.exists('ilasp_config.lp'):
-                f.write(open('ilasp_config.lp').read() + "\n")
-            f.write("\n".join(E_plus) + "\n" + "\n".join(E_minus))
-
-        print("Running ILASP...")
-        # We combine stdout and stderr just in case the rule is printed to stderr
-        res = subprocess.run(['ilasp', '--version=4', '-q', 'input.las'], 
-                             capture_output=True, text=True)
+        # 3. Targeted ILASP Induction
+        # We only ask ILASP to explain the LATEST candidate relative to experts.
+        # This prevents 'legal noise' from blocking the discovery of the rule.
+        E_plus, E_minus = trajectory_to_logic_examples(EXPERT_TRAJECTORIES, [c_star])
         
-        output = res.stdout + res.stderr
-        print(f"DEBUG ILASP OUTPUT: {output.strip()}") # Let's see what Python sees
+        with open('input.las', 'w') as f_out:
+            if os.path.exists('ilasp_config.lp'):
+                f_out.write(open('ilasp_config.lp').read() + "\n")
+            f_out.write("\n".join(E_plus) + "\n" + "\n".join(E_minus))
 
-        # 3. Aggressive Parsing
-        if "violation" in output and ("smaller" in output or ";" in output):
-            rule = output.split('\n')[0].strip()
-            print(f"SUCCESS! Learned General Rule: {rule}")
-            
-            # THE SWEEP
-            count = 0
-            for s in STATE_SPACE:
-                for a in ACTION_SPACE:
-                    f = convert_state_to_facts(s, a)
-                    m = re.search(r'\((\d+)\)', f[0])
-                    t = re.search(r'\((\d+)\)', f[1])
-                    if m and t and t.group(1).isdigit():
-                        if int(m.group(1)) > int(t.group(1)):
-                            C.add((s, a))
-                            count += 1
-            print(f"Generalization complete: Blocked {count} total illegal moves.")
+        res = subprocess.run(['ilasp', '--version=4', '-q', 'input.las'], capture_output=True, text=True)
+        
+        output = res.stdout.strip()
+        if "violation" in output:
+            print(f"\n" + "*"*40)
+            print(f"SUCCESS! LOGIC RULE DISCOVERED")
+            print(f"The IRL flagged: {c_star}")
+            print(f"ILASP Explanation: {output}")
+            print("*"*40)
             break
         else:
-            print("ILASP output did not contain a valid rule yet.")
-
-    print(f"\nFINAL RESULT: {len(C)} illegal moves mapped.")
+            if (i+1) % 10 == 0:
+                print(f"Processed {i+1} candidates... still searching for physical laws.")
 
 if __name__ == "__main__":
     run_inference()

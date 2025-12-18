@@ -11,36 +11,37 @@ class MDP:
         self.gamma = gamma
         self.horizon = horizon
 
-def convert_state_to_facts(state, action_str):
-    """
-    state: (peg_disk1, peg_disk2, peg_disk3)
-    action_str: 'move(p1, p2)'
-    """
-    match = re.match(r'move\((\d+), (\d+)\)', action_str)
-    from_p, to_p = int(match.group(1)), int(match.group(2))
+import re
 
-    # Identify top disk on 'from' peg (Disk 1 is smallest, 3 is largest)
+def convert_state_to_facts(state, action_str):
+    match = re.match(r'move\((\d+), (\d+)\)', action_str)
+    if not match: return ["moving_disk(none).", "disk_below(none)."]
+    
+    from_p, to_p = int(match.group(1)), int(match.group(2))
+    # Disk 1 (Small) to Disk 3 (Large)
     p1_disks = [d_idx for d_idx, peg in enumerate(state, 1) if peg == from_p]
     moving_disk = min(p1_disks) if p1_disks else "none"
     
-    # Identify top disk on 'to' peg
     p2_disks = [d_idx for d_idx, peg in enumerate(state, 1) if peg == to_p]
     target_disk = min(p2_disks) if p2_disks else "none"
 
-    # Return facts as a list of strings
     return [f"moving_disk({moving_disk})", f"disk_below({target_disk})"]
 
 def trajectory_to_logic_examples(expert_trajectories, C):
     E_plus, E_minus = [], []
+    bg = "disk(1..3). smaller(1,2). smaller(1,3). smaller(2,3)."
+    
     for traj in expert_trajectories:
         for s, a, _ in traj:
-            f_list = convert_state_to_facts(s, a)
-            context = " ".join([f"{f}." for f in f_list])
+            f = convert_state_to_facts(s, a)
+            context = f"{' '.join([x + '.' for x in f])} {bg}"
             E_minus.append(f"#neg({{violation}}, {{}}, {{ {context} }}).")
+
     for s, a in C:
-        f_list = convert_state_to_facts(s, a)
-        context = " ".join([f"{f}." for f in f_list])
+        f = convert_state_to_facts(s, a)
+        context = f"{' '.join([x + '.' for x in f])} {bg}"
         E_plus.append(f"#pos({{violation}}, {{}}, {{ {context} }}).")
+        
     return E_plus, E_minus
 
 def hypothesis_to_constraints(hyp, mdp):
